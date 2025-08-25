@@ -6,11 +6,14 @@ from langchain_community.tools.tavily_search import TavilySearchResults  # Tavil
 import os  # os module for environment variable handling
 from langgraph.prebuilt import create_react_agent  # Function to create a ReAct agent
 from langchain_groq import ChatGroq  # ChatGroq class for interacting with LLMs
+from dotenv import load_dotenv  # Load environment variables from a .env file   
+import os
 
+load_dotenv()  # Load environment variables from a .env file
 
 # Retrieve and set API keys for external tools and services
-groq_api_key = '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'  # Groq API key
-os.environ["TAVILY_API_KEY"] = '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'  # Set Tavily API key
+groq_api_key = os.getenv("GROQ_API_KEY")  # Get Groq API key from environment variables
+os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")  # Set Tavily API key in environment variables
 
 # Predefined list of supported model names
 MODEL_NAMES = [
