@@ -48,17 +48,22 @@ def chat_endpoint(request: RequestState):
         # Return an error response if the model name is invalid
         return {"error": "Invalid model name. Please select a valid model."}
 
-    # Initialize the LLM with the selected model
+    # Creates an instance of the ChatGroq class, which is a language model interface. 
+    # It uses the provided API key and the model name specified in the incoming request.
     llm = ChatGroq(groq_api_key=groq_api_key, model_name=request.model_name)
 
-    # Create a ReAct agent using the selected LLM and tools
+    # Creates a ReAct agent (an agent that can reason and act) using the language model (llm), 
+    # a list of tools (like search or code execution), 
+    # and a system prompt (instructions for the agent’s behavior)
     agent = create_react_agent(llm, tools=tools, prompt=request.system_prompt)
 
-    # Create the initial state for processing
+    # Prepares the initial state for the agent. It puts the list of chat messages 
+    # from the request into a dictionary under the key "messages".
     state = {"messages": request.messages}
 
-    # Process the state using the agent
-    result = agent.invoke(state)  # Invoke the agent (can be async or sync based on implementation)
+    # Runs the agent with the initial state. The agent processes the messages 
+    # (and possibly uses the tools) to generate a response, which is stored in result.
+    result = agent.invoke(state)
 
     # Return the result as the response
     return result
