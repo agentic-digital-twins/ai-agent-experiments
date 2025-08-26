@@ -72,8 +72,35 @@ python app.py
 Or, for the UI:
 
 ```bash
-python ui.py
+$ streamlit run ui.py
 ```
+
+      Welcome to Streamlit!
+
+      If you'd like to receive helpful onboarding emails, news, offers, promotions,
+      and the occasional swag, please enter your email address below. Otherwise,
+      leave this field blank.
+
+      Email:
+
+You can find our privacy policy at https://streamlit.io/privacy-policy
+
+Summary:
+
+- This open source library collects usage statistics.
+- We cannot see and do not store information contained inside Streamlit apps,
+  such as text, charts, images, etc.
+- Telemetry data is stored in servers in the United States.
+- If you'd like to opt out, add the following to %userprofile%/.streamlit/config.toml,
+  creating that file if necessary:
+
+  [browser]
+  gatherUsageStats = false
+
+You can now view your Streamlit app in your browser.
+
+Local URL: http://localhost:8501
+Network URL: http://192.168.1.8:8501
 
 ---
 
@@ -84,3 +111,9 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 [MIT](LICENSE)
+
+The class `TavilySearchResults` was deprecated in LangChain 0.3.25 and will be removed in 1.0. An updated version of the class exists in the :class:`~langchain-tavily package and should be used instead. To use it run `pip install -U
+:class:`~langchain-tavily` and import as `from :class:`~langchain_tavily import TavilySearch``.
+
+You can see the OpenAPI Swagger doc here:
+http://localhost:8000/docs#/

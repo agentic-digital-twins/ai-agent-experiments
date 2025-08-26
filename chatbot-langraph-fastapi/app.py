@@ -52,7 +52,7 @@ def chat_endpoint(request: RequestState):
     llm = ChatGroq(groq_api_key=groq_api_key, model_name=request.model_name)
 
     # Create a ReAct agent using the selected LLM and tools
-    agent = create_react_agent(llm, tools=tools, state_modifier=request.system_prompt)
+    agent = create_react_agent(llm, tools=tools, prompt=request.system_prompt)
 
     # Create the initial state for processing
     state = {"messages": request.messages}

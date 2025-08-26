@@ -18,7 +18,7 @@ st.title("LangGraph Chatbot Agent")
 st.write("Interact with the LangGraph-based agent using this interface.")
 
 # Input box for system prompt
-given_system_prompt = st.text_area("Define you AI Agent:", height=10, placeholder="Type your system prompt here...")
+given_system_prompt = st.text_area("Define your AI Agent:", height=10, placeholder="Type your system prompt here...")
 
 # Dropdown for selecting the model
 selected_model = st.selectbox("Select Model:", MODEL_NAMES)
