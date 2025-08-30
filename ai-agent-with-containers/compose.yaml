@@ -1,0 +1,27 @@
+services:
+  backend:
+    image: backend
+    command: python -m http.server 3000
+    volumes:
+      - ./backend/src:/app
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3000"
+  frontend:
+    image: frontend
+    command: python -m http.server 3000
+    volumes:
+      - ./frontend/src:/app
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+  webappA2:
+    image: pyapp
+    command: python -m http.server 3000
+    build: .
+    ports:
+      - "3000:3000"
