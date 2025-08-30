@@ -46,3 +46,10 @@ WORKDIR /app
 
 RUN mkdir -p /static_folder
 COPY ./static_folder /static_folder
+
+docker compose run backend bash
+
+--- Other
+
+pypi
+fastapi
