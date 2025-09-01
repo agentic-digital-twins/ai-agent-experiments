@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir --upgrade pip && pip install -r /tmp/requirements
 COPY ./src .
 
 
-CMD [ "python", "-m", "http.server", "8000" ]
+CMD [ "python", "-m", "http.server", "3000" ]

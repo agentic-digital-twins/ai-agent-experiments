@@ -49,7 +49,14 @@ COPY ./static_folder /static_folder
 
 docker compose run backend bash
 
+volumes don't honor dockerignore
+develop:
+watch:
+-action: sync does honor dockerignore
+path:
+
 --- Other
 
 pypi
 fastapi
+git remote -v
