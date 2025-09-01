@@ -67,3 +67,5 @@ docker compose ps
 pypi
 fastapi
 git remote -v
+
+$ curl -X POST -d '{"message": "Hello, World!"}' -H "Content-Type: application/json" http://localhost:3002/api/chats/
