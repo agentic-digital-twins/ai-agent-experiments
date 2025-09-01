@@ -37,8 +37,9 @@ docker run -it -p 3000:8000 pyapp
 
 ----- docker compose help remember what arguments you want on your docker run command ----
 ----- docker compose lets you specify multiple programs/services --------
+docker compose down -v --remove-orphans
 docker compose up --remove-orphans
-docker compose up --build
+docker compose up --build --watch
 
 WORKDIR /app
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from api.db import init_db
 from api.chat.routing import router as chat_router
 
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
     init_db()

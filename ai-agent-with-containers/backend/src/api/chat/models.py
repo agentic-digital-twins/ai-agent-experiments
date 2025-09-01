@@ -1,4 +1,9 @@
-from sqlmodel import SQLModel, Field
+from datetime import datetime, timezone
+
+from sqlmodel import SQLModel, Field, DateTime
+
+def get_utc_now():
+    return datetime.now().replace(tzinfo=timezone.utc)
 
 class ChatMessagePayload(SQLModel):
     # validation model for incoming chat message payloads
@@ -13,6 +18,12 @@ class ChatMessage(SQLModel, table=True):
     # database table, model for chat messages
     message: str = Field(..., description="The content of the chat message")
     id: int | None = Field(default=None, primary_key=True)  
+    created_at: datetime | None = Field(
+        default_factory=get_utc_now, description="Timestamp when the message was created",
+        sa_type=DateTime(timezone=True),
+        primary_key=False,
+        nullable=False,
+    )
     # role: str = Field(..., description="The role of the message sender, e.g., 'user' or 'assistant'")
     # timestamp: str = Field(..., description="The timestamp when the message was created")
     # conversation_id: int = Field(..., description="The ID of the conversation this message belongs to")
@@ -20,3 +31,11 @@ class ChatMessage(SQLModel, table=True):
     # response_to_id: int | None = Field(default=None, description="The ID of the message this is a response to, if applicable")
     # metadata: str | None = Field(default=None, description="Additional metadata for the message, stored as a JSON string")
 
+
+class ChatMessageList(SQLModel):
+    messages: list[ChatMessage] = Field(default_factory=list)
+
+class ChatMessageListItem(SQLModel):
+    id: int = Field(default=None)
+    message: str
+    created_at: datetime = Field(default=None)
