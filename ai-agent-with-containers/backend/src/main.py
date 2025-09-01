@@ -1,7 +1,19 @@
-from fastapi import FastAPI
 import os
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+from fastapi import FastAPI
+
+from api.db import init_db
+from api.chat.routing import router as chat_router
+
+async def lifespan(app: FastAPI):
+    # Startup code
+    init_db()
+    yield
+    # Any cleanup code can go here
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(chat_router, prefix="/api/chats")
 
 MY_TEST_VAR_INT = os.environ.get("MY_TEST_VAR_INT", "default_value int")
 MY_TEST_VAR_STR = os.environ.get("MY_TEST_VAR_STR", "default_value str")    

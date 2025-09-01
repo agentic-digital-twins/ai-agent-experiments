@@ -55,6 +55,12 @@ watch:
 -action: sync does honor dockerignore
 path:
 
+#Databases persist, volumes won't stop
+docker compose down
+#Databases will be deleted
+docker compose down -v
+docker compose ps
+
 --- Other
 
 pypi

@@ -36,3 +36,17 @@ services:
     build: .
     ports:
       - "3000:3000"
+  db_service:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=db-password
+      - POSTGRES_DB=mydb
+    # env_file:
+    #   - ./backend/.env.sample-db
+    ports:
+      - 5432:5432
+    volumes:
+      - dockercompose_managed_db_data:/var/lib/postgresql/data
+volumes:
+  dockercompose_managed_db_data:
