@@ -4,3 +4,5 @@ requests
 sqlmodel
 psycopg2
 psycopg[binary]
+langchain
+langchain-openai

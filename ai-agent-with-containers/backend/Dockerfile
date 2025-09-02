@@ -1,6 +1,7 @@
 FROM python:latest
 
-# RUN apt-get update && apt-get install -y curl
+# for testing connecting to host machine from inside docker container
+RUN apt-get update && apt-get install -y curl
 # host.docker.internal
 
 # Create python virtual environment

@@ -69,3 +69,71 @@ fastapi
 git remote -v
 
 $ curl -X POST -d '{"message": "Hello, World!"}' -H "Content-Type: application/json" http://localhost:3002/api/chats/
+
+$ curl -X POST -d '{"message": "Hello, World!"}' -H "Content-Type: application/json" https://ai-agent-experiments-production.up.railway.app/api/chats/
+{"created_at":"2025-09-01T18:06:24.791262Z","message":"Hello, World!","id":1}(venv)
+
+## Docker Model Runner
+
+_From host terminal_
+
+```bash
+curl http://localhost:12434/engines/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "model": "ai/smollm2",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant."
+            },
+            {
+                "role": "user",
+                "content": "Please write 500 words about the fall of Rome."
+            }
+        ]
+    }'
+```
+
+_From within a container_
+
+```bash
+curl http://model-runner.docker.internal/engines/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "model": "ai/smollm2",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant."
+            },
+            {
+                "role": "user",
+                "content": "Please write 500 words about the fall of Rome."
+            }
+        ]
+    }'
+```
+
+---
+
+interactively test:
+
+$ docker compose run backend bash
+[+] Creating 1/1
+✔ Container ai-agent-with-containers-db_service-1 Running 0.0s
+root@54299f8768f6:/app# pwd
+/app
+root@54299f8768f6:/app# ls
+**pycache** api main.py
+root@54299f8768f6:/app# cd api
+root@54299f8768f6:/app/api# ls
+**init**.py **pycache** chat db.py
+root@54299f8768f6:/app/api# cd chat
+root@54299f8768f6:/app/api/chat# ls
+**init**.py **pycache** ai_services.py models.py routing.py
+root@54299f8768f6:/app/api/chat# python ai_services.py
+root@54299f8768f6:/app/api/chat# python -i ai_services.py
+
+> > > OPENAI_BASE_URL
+> > > 'http://model-runner.docker.internal/engines/v1'

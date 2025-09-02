@@ -25,6 +25,8 @@ def chat_get_recent_messages(
 
 
 # curl -X POST -d '{"message": "Hello, World!"}' -H "Content-Type: application/json" http://localhost:3002/api/chats/
+# $ curl -X POST -d '{"message": "Hello, World!"}' -H "Content-Type: application/json" https://ai-agent-experiments-production.up.railway.app/api/chats/
+# {"created_at":"2025-09-01T18:06:24.791262Z","message":"Hello, World!","id":1}(venv) 
 @router.post("/", response_model=ChatMessage)
 def chat_create_message(
     payload:ChatMessagePayload,
