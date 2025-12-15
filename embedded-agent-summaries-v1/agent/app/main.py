@@ -5,7 +5,7 @@ import os
 from .personas import get_persona_ids, get_persona
 from .markdown_loader import load_markdown
 from .llm_client import summarize_markdown, persona_speech_text
-from .tts_client import request_tts
+from .tts_client import synthesize_speech
 
 app = FastAPI(title="Embedded Agent Summaries")
 
@@ -40,7 +40,7 @@ async def summarize_and_speak(req: SummarizeRequest):
 
     neutral_summary = await summarize_markdown(md)
     spoken_text = await persona_speech_text(neutral_summary, persona)
-    tts_result = await request_tts(spoken_text, persona)
+    tts_result = await synthesize_speech(spoken_text, persona)
 
     return {
         "status": "ok",

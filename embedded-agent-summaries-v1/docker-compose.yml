@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   llm:
     image: ghcr.io/ggml-org/llama.cpp:full
@@ -21,18 +19,40 @@ services:
     container_name: embedded-agent
     environment:
       - LLM_BASE_URL=http://llm:8080
-      - TTS_BASE_URL=http://tts:8000
+      # - TTS_BASE_URL=http://tts:8000 -- IGNORE left in as a debug tool for TTS ---
       - DOCS_DIR=/docs
+      - TTS_BACKEND: "piper"
+      - TTS_PIPER_URL: "http://piper:5000"
+      # Optional persona→voice mapping config
+      - TTS_PIPER_DEFAULT_VOICE: "en_US-kathleen-low"
     volumes:
       - ./docs:/docs
+      - ./:/app
     depends_on:
       - llm
-      - tts
+      # - tts -- IGNORE left in as a debug tool for TTS ---
+      - piper
     ports:
       - "8001:8001"
 
-  tts:
-    build: ./tts
-    container_name: embedded-tts
+  piper:
+    image: rhasspy/piper:latest
+    container_name: piper_tts
+    restart: unless-stopped
+    # Piper model and config can be managed with env or mounted models
+    environment:
+      # This image exposes an HTTP API on port 5000 by default
+      # (If your chosen image differs, tweak this accordingly)
+      PIPER_USE_HTTP: "1"
     ports:
-      - "8002:8000"
+      - "5000:5000"
+    volumes:
+      # Optional: host directory where Piper models are stored
+      # and referenced by voice config. Comment out if not used.
+      - ./piper_models:/piper/models
+
+  # tts: -- IGNORE left in as a debug tool for TTS ---
+  #   build: ./tts
+  #   container_name: embedded-tts
+  #   ports:
+  #     - "8002:8000"

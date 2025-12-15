@@ -27,41 +27,70 @@ async def _call_llm(prompt: str, n_predict: int = 256, temperature: float = 0.2)
 
 
 async def summarize_markdown(markdown_text: str) -> str:
-    system = (
-        "You are a summarization assistant running on an embedded device. "
-        "You take markdown documents and produce clear, neutral summaries."
-    )
-    user = f"""
-You will be given a markdown document.
+    prompt = f"""
+You are a concise technical summarization assistant running on a small embedded device.
 
-Instructions:
-1. Ignore navigation menus, boilerplate, and raw URLs.
-2. Focus on core meaning, key concepts, and any operational implications.
-3. Output:
-   - 3–5 bullet-style lines (use '-' at start)
-   - Then a single 'Bottom line:' sentence.
+Summarize the following markdown document.
 
-Markdown:
-\"\"\"{markdown_text}\"\"\"
+Rules:
+- Ignore navigation menus, boilerplate, and raw URLs.
+- Focus on core meaning, key concepts, and operational implications.
+- Return ONLY lines that follow this exact format:
+  - Start 3–5 lines with "- " for bullet points.
+  - Then one line starting with "Bottom line:" for the final summary.
+- Do NOT include any other text before or after the bullets.
+
+Markdown document:
+{markdown_text}
+
+Now write the summary using the required format:
 """
-    prompt = f"### System\n{system}\n\n### User\n{user}\n\n### Assistant\n"
-    return await _call_llm(prompt, n_predict=256, temperature=0.1)
+    raw = await _call_llm(prompt, n_predict=192, temperature=0.4)
+
+    # Light cleanup: keep only bullet lines and a single Bottom line
+    lines = [ln.strip() for ln in raw.splitlines()]
+    bullets = [ln for ln in lines if ln.startswith("- ")]
+    bottom = None
+    for ln in lines:
+        if ln.startswith("Bottom line:"):
+            bottom = ln
+            break
+
+    # Limit bullets to at most 5
+    bullets = bullets[:5]
+
+    # If model didn’t follow format at all, fall back to the raw text
+    if not bullets and not bottom:
+        return raw.strip()
+
+    parts = []
+    parts.extend(bullets)
+    if bottom:
+        parts.append(bottom)
+    return "\n".join(parts).strip()
+
 
 
 async def persona_speech_text(neutral_summary: str, persona: Persona) -> str:
     system = persona["llmStyle"]["systemPrompt"]
     tone = persona["llmStyle"]["summaryTone"]
 
-    user = f"""
-You are preparing a spoken report based on this neutral summary:
-\"\"\"{neutral_summary}\"\"\"
-Constraints:
-- Start with a brief headline in one sentence.
+    prompt = f"""
+{system}
+
+You will be given a neutral summary of a technical or operational document.
+
+Your task:
+- Turn it into a spoken report.
+- Start with a one-sentence headline.
 - Then speak 3–5 short sentences.
-- Use natural spoken language, not bullet points.
-- The total length should be about 20–40 seconds when read aloud.
+- Use natural spoken language (no bullets, no markup).
+- Aim for about 20–40 seconds of speech.
 - {tone}
-Return plain text only, no markdown.
+
+Neutral summary:
+{neutral_summary}
+
+Now produce the spoken report:
 """
-    prompt = f"### System\n{system}\n\n### User\n{user}\n\n### Assistant\n"
     return await _call_llm(prompt, n_predict=256, temperature=0.7)
