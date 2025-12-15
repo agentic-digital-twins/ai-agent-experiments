@@ -1,91 +1,125 @@
-import os
-import httpx
-from .personas import Persona
+import logging
 import os
 import uuid
-import pathlib
-import logging
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, Optional, Union
+
+import httpx
 import yaml
 
-
-import requests  # add to your agent Docker image requirements
+from .personas import Persona
 
 logger = logging.getLogger(__name__)
 
-PIPER_URL = os.getenv("TTS_PIPER_URL", "http://piper:5000")
-DEFAULT_VOICE = os.getenv("TTS_PIPER_DEFAULT_VOICE", "en_US-kathleen-low")
+PIPER_BASE_URL = os.getenv("TTS_PIPER_URL", "http://piper:5000")
+AUDIO_OUTPUT_DIR = Path(os.getenv("TTS_AUDIO_DIR", "/audio"))
+PERSONA_VOICE_CONFIG = Path(
+    os.getenv("PERSONA_VOICE_CONFIG", "/app/config/persona_voices.yaml")
+)
+DEFAULT_VOICE = os.getenv("TTS_PIPER_DEFAULT_VOICE", "en_US-kusal-medium")
 
-# Simple persona-to-Piper voice mapping
-PERSONA_VOICE_MAP: Dict[str, str] = {
-    "calm_engineer": "en_US-kathleen-low",
-    "excited_host": "en_US-amy-low",
-    "captain": "en_US-ryan-high",
-    # Add more as you define them
-}
-
-def load_persona_voice_map(path: str = "persona_voices.yaml") -> Dict[str, str]:
-    p = pathlib.Path(path)
-    if not p.exists():
-        return {}
-    with p.open("r") as f:
-        return yaml.safe_load(f) or {}
-
-AUDIO_OUTPUT_DIR = pathlib.Path(os.getenv("TTS_AUDIO_DIR", "audio_out"))
-AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-def resolve_piper_voice(persona: Optional[str]) -> str:
-    if persona and persona in PERSONA_VOICE_MAP:
-        return PERSONA_VOICE_MAP[persona]
-    return DEFAULT_VOICE
 
 class TTSClientError(Exception):
     pass
 
 
-def synthesize_speech(
+def _load_persona_voice_map() -> Dict[str, str]:
+    if not PERSONA_VOICE_CONFIG.exists():
+        logger.warning(
+            "Persona voice config not found at %s; using defaults",
+            PERSONA_VOICE_CONFIG,
+        )
+        return {}
+    try:
+        with PERSONA_VOICE_CONFIG.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        if not isinstance(data, dict):
+            logger.warning("Persona voice config is not a mapping")
+            return {}
+        return {str(k): str(v) for k, v in data.items()}
+    except Exception as e:
+        logger.exception("Failed to load persona voice config: %s", e)
+        return {}
+
+
+_PERSONA_VOICE_MAP: Dict[str, str] = _load_persona_voice_map()
+
+
+def _persona_key(persona: Optional[Union[Persona, str]]) -> Optional[str]:
+    if persona is None:
+        return None
+    if isinstance(persona, dict):
+        return persona.get("id")
+    if isinstance(persona, str):
+        return persona
+    return None
+
+
+def resolve_piper_voice(persona: Optional[Union[Persona, str]]) -> str:
+    pid = _persona_key(persona)
+    if pid and pid in _PERSONA_VOICE_MAP:
+        return _PERSONA_VOICE_MAP[pid]
+    return DEFAULT_VOICE
+
+
+async def synthesize_speech(
     text: str,
-    persona: Optional[str] = None,
+    persona: Optional[Union[Persona, str]] = None,
 ) -> Dict[str, str]:
     """
-    Synthesize speech using Piper and return a dict matching
-    the existing agent TTS response structure.
+    Call Piper HTTP server and write a WAV file.
 
-    Returned structure (example):
-    {
-        "status": "ok",
-        "audio_id": "48412896-aace-4731-9939-1a4ce8f88f52",
-        "spoken_text": text,
-        "audio_path": "audio_out/48412896-aace-4731-9939-1a4ce8f88f52.wav",
-        "backend": "piper",
-    }
+    Contract stays the same for the agent:
+        - status
+        - audio_id
+        - spoken_text
+
+    And we add:
+        - audio_path
+        - backend
+        - voice
     """
     if not text or not text.strip():
         raise TTSClientError("Text for TTS must not be empty")
+
+    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     voice = resolve_piper_voice(persona)
     audio_id = str(uuid.uuid4())
     audio_path = AUDIO_OUTPUT_DIR / f"{audio_id}.wav"
 
-    logger.info(f"[TTS] Synthesizing with Piper voice='{voice}', id={audio_id}")
+    logger.info(
+        "[TTS] Synthesizing with Piper voice='%s', id=%s, len(text)=%d",
+        voice,
+        audio_id,
+        len(text),
+    )
 
+    # IMPORTANT: Piper's http_server expects:
+    #   - URL: "/" (root)
+    #   - Method: GET with ?text=... OR POST with raw body text
+    # It returns raw WAV bytes.
+
+    # We'll use POST with raw text body.
     try:
-        # Adjust payload format to your Piper HTTP wrapper
-        payload = {
-            "text": text,
-            "voice": voice,
-            "format": "wav",
-        }
-
-        # Some Piper frontends use POST /synthesize, some /
-        resp = requests.post(f"{PIPER_URL}/synthesize", json=payload, timeout=30)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                PIPER_BASE_URL,  # e.g. "http://piper:5000"
+                content=text.encode("utf-8"),
+                headers={"Content-Type": "text/plain; charset=utf-8"},
+                # NOTE: vanilla http_server.py does NOT support voice selection
+                # via query or JSON. The voice/model is fixed by the container.
+                # persona→voice is future-proofing for when we switch to a
+                # multi-voice wrapper, but right now it's effectively cosmetic.
+            )
 
         if resp.status_code != 200:
+            snippet = resp.text[:200]
             logger.error(
-                "Piper TTS error: %s %s", resp.status_code, resp.text[:200]
+                "Piper TTS error: HTTP %s – %s", resp.status_code, snippet
             )
             raise TTSClientError(
-                f"Piper TTS HTTP {resp.status_code}: {resp.text[:200]}"
+                f"Piper TTS HTTP {resp.status_code}: {snippet}"
             )
 
         wav_bytes = resp.content
@@ -95,11 +129,10 @@ def synthesize_speech(
         with audio_path.open("wb") as f:
             f.write(wav_bytes)
 
-    except (requests.RequestException, OSError) as e:
+    except (httpx.RequestError, OSError) as e:
         logger.exception("Failed to synthesize with Piper")
         raise TTSClientError(str(e)) from e
 
-    # Keep API surface compatible; add fields but don’t remove old ones
     return {
         "status": "ok",
         "audio_id": audio_id,

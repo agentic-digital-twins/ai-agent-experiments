@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   llm:
     image: ghcr.io/ggml-org/llama.cpp:full
@@ -10,46 +12,56 @@ services:
       --host 0.0.0.0
       --port 8080
     volumes:
-      - f:/Jim/IPP/ai-agent-experiments/models:/models
+      # Adjust this path to wherever your shared models directory lives.
+      # Assuming you moved it to the monorepo root:
+      #   ai-agent-experiments/models
+      - ../models:/models
     ports:
       - "8080:8080"
 
   agent:
     build: ./agent
     container_name: embedded-agent
-    environment:
-      - LLM_BASE_URL=http://llm:8080
-      # - TTS_BASE_URL=http://tts:8000 -- IGNORE left in as a debug tool for TTS ---
-      - DOCS_DIR=/docs
-      - TTS_BACKEND: "piper"
-      - TTS_PIPER_URL: "http://piper:5000"
-      # Optional persona→voice mapping config
-      - TTS_PIPER_DEFAULT_VOICE: "en_US-kathleen-low"
-    volumes:
-      - ./docs:/docs
-      - ./:/app
     depends_on:
       - llm
-      # - tts -- IGNORE left in as a debug tool for TTS ---
       - piper
+    environment:
+      # Where the agent finds the LLM HTTP server
+      LLM_BASE_URL: "http://llm:8080"
+      # Where markdown docs are mounted in the container
+      DOCS_DIR: "/docs"
+      # Piper TTS endpoint (container-to-container URL)
+      TTS_PIPER_URL: "http://piper:5000"
+      # Where to write audio files inside the container
+      TTS_AUDIO_DIR: "/audio"
+      # Where persona→voice mapping lives inside the container
+      PERSONA_VOICE_CONFIG: "/app/config/persona_voices.yaml"
+      # Default Piper voice if a persona is not mapped
+      TTS_PIPER_DEFAULT_VOICE: "en_US-kathleen-low"
+    volumes:
+      # Mount app code so you can iterate without rebuilding every change
+      - ./agent/app:/app/app
+      # Markdown docs
+      - ./docs:/docs:ro
+      # Audio output (wav files come out here on the host)
+      - ./audio:/audio
+      # Shared models for any future use (read-only)
+      - ../models:/models:ro
     ports:
       - "8001:8001"
 
   piper:
-    image: rhasspy/piper:latest
-    container_name: piper_tts
+    image: artibex/piper-http:latest
+    container_name: embedded-piper
     restart: unless-stopped
-    # Piper model and config can be managed with env or mounted models
     environment:
-      # This image exposes an HTTP API on port 5000 by default
-      # (If your chosen image differs, tweak this accordingly)
-      PIPER_USE_HTTP: "1"
+      # This tells the image which voice model to download/use
+      MODEL_DOWNLOAD_LINK: "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/kusal/medium/en_US-kusal-medium.onnx?download=true"
     ports:
       - "5000:5000"
     volumes:
-      # Optional: host directory where Piper models are stored
-      # and referenced by voice config. Comment out if not used.
-      - ./piper_models:/piper/models
+      # Optional: cache model/data on the host so startup is faster after first run
+      - ./piper-data:/data
 
   # tts: -- IGNORE left in as a debug tool for TTS ---
   #   build: ./tts

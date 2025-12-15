@@ -10,8 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app/ ./app/
+COPY config/ ./config/
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard] httpx pydantic
+RUN pip install --no-cache-dir fastapi uvicorn[standard] httpx pydantic pyyaml
 
 EXPOSE 8001
 
