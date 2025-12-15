@@ -18,11 +18,11 @@ async def _call_llm(prompt: str, n_predict: int = 256, temperature: float = 0.2)
         resp = await client.post(url, json=payload)
         resp.raise_for_status()
         data = resp.json()
-    # llama.cpp returns {"content": "..."} or older: {"choices": [{"text": "..."}]}
-    if "content" in data:
-        return data["content"]
-    if "choices" in data and data["choices"]:
-        return data["choices"][0].get("text", "")
+    if isinstance(data, dict):
+        if "content" in data:
+            return data["content"]
+        if "choices" in data and data["choices"]:
+            return data["choices"][0].get("text", "")
     return str(data)
 
 
@@ -55,7 +55,6 @@ async def persona_speech_text(neutral_summary: str, persona: Persona) -> str:
     user = f"""
 You are preparing a spoken report based on this neutral summary:
 \"\"\"{neutral_summary}\"\"\"
-
 Constraints:
 - Start with a brief headline in one sentence.
 - Then speak 3–5 short sentences.

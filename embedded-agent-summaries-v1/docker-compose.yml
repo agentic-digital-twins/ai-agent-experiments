@@ -29,10 +29,10 @@ services:
       - llm
       - tts
     ports:
-      - "8001:8001" # agent API
+      - "8001:8001"
 
   tts:
     build: ./tts
     container_name: embedded-tts
     ports:
-      - "8002:8000" # tts API (internal: 8000)
+      - "8002:8000"
