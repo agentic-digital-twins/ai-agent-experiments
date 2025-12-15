@@ -1,6 +1,8 @@
 import logging
 import os
 import uuid
+import wave
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -11,30 +13,42 @@ from .personas import Persona
 
 logger = logging.getLogger(__name__)
 
+# Base URL for the Piper HTTP server (root URL, no path)
 PIPER_BASE_URL = os.getenv("TTS_PIPER_URL", "http://piper:5000")
+
+# Root directory where all audio will be stored, e.g. /audio
 AUDIO_OUTPUT_DIR = Path(os.getenv("TTS_AUDIO_DIR", "/audio"))
+
+# Path to YAML config that maps persona ids to Piper voice ids
 PERSONA_VOICE_CONFIG = Path(
     os.getenv("PERSONA_VOICE_CONFIG", "/app/config/persona_voices.yaml")
 )
+
+# Default Piper voice if persona is unmapped
 DEFAULT_VOICE = os.getenv("TTS_PIPER_DEFAULT_VOICE", "en_US-kusal-medium")
 
 
 class TTSClientError(Exception):
-    pass
+    """Raised when TTS synthesis fails."""
 
 
 def _load_persona_voice_map() -> Dict[str, str]:
+    """Load persona->voice mapping from YAML config file, if present."""
     if not PERSONA_VOICE_CONFIG.exists():
         logger.warning(
-            "Persona voice config not found at %s; using defaults",
+            "Persona voice config not found at %s; falling back to defaults",
             PERSONA_VOICE_CONFIG,
         )
         return {}
+
     try:
         with PERSONA_VOICE_CONFIG.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
-            logger.warning("Persona voice config is not a mapping")
+            logger.warning(
+                "Persona voice config at %s is not a mapping; ignoring",
+                PERSONA_VOICE_CONFIG,
+            )
             return {}
         return {str(k): str(v) for k, v in data.items()}
     except Exception as e:
@@ -42,10 +56,12 @@ def _load_persona_voice_map() -> Dict[str, str]:
         return {}
 
 
+# Loaded once at import time
 _PERSONA_VOICE_MAP: Dict[str, str] = _load_persona_voice_map()
 
 
 def _persona_key(persona: Optional[Union[Persona, str]]) -> Optional[str]:
+    """Normalize persona identifier to its id string."""
     if persona is None:
         return None
     if isinstance(persona, dict):
@@ -56,61 +72,68 @@ def _persona_key(persona: Optional[Union[Persona, str]]) -> Optional[str]:
 
 
 def resolve_piper_voice(persona: Optional[Union[Persona, str]]) -> str:
+    """Resolve which Piper voice id to use for a given persona."""
     pid = _persona_key(persona)
     if pid and pid in _PERSONA_VOICE_MAP:
         return _PERSONA_VOICE_MAP[pid]
     return DEFAULT_VOICE
 
 
+def _get_output_dir(persona: Optional[Union[Persona, str]]) -> Path:
+    """Get the directory where this audio file should be stored.
+
+    Structure:
+        <AUDIO_ROOT_DIR>/<YYYY-MM-DD>/<persona-id-or-default>/
+    """
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    pid = _persona_key(persona) or "default"
+    out_dir = AUDIO_OUTPUT_DIR / today / pid
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
 async def synthesize_speech(
     text: str,
     persona: Optional[Union[Persona, str]] = None,
 ) -> Dict[str, str]:
-    """
-    Call Piper HTTP server and write a WAV file.
+    """Synthesize speech using Piper HTTP server and write it to a WAV file.
 
-    Contract stays the same for the agent:
-        - status
-        - audio_id
-        - spoken_text
+    The public contract for the agent remains:
+      - status
+      - audio_id
+      - spoken_text
 
-    And we add:
-        - audio_path
-        - backend
-        - voice
+    Additional fields:
+      - audio_path: filesystem path to the generated WAV
+      - backend: 'piper'
+      - voice: Piper voice id (from persona mapping)
+      - sample_rate, channels, frames: basic WAV metadata
     """
     if not text or not text.strip():
         raise TTSClientError("Text for TTS must not be empty")
 
-    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
+    out_dir = _get_output_dir(persona)
     voice = resolve_piper_voice(persona)
     audio_id = str(uuid.uuid4())
-    audio_path = AUDIO_OUTPUT_DIR / f"{audio_id}.wav"
+    audio_path = out_dir / f"{audio_id}.wav"
 
     logger.info(
-        "[TTS] Synthesizing with Piper voice='%s', id=%s, len(text)=%d",
+        "[TTS] Synthesizing with Piper voice='%s', id=%s, len(text)=%d, dir=%s",
         voice,
         audio_id,
         len(text),
+        out_dir,
     )
 
-    # IMPORTANT: Piper's http_server expects:
-    #   - URL: "/" (root)
-    #   - Method: GET with ?text=... OR POST with raw body text
+    # Piper's http_server exposes a single route at '/', and expects:
+    #   - POST with raw UTF-8 text in the body
     # It returns raw WAV bytes.
-
-    # We'll use POST with raw text body.
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                PIPER_BASE_URL,  # e.g. "http://piper:5000"
+                PIPER_BASE_URL,
                 content=text.encode("utf-8"),
                 headers={"Content-Type": "text/plain; charset=utf-8"},
-                # NOTE: vanilla http_server.py does NOT support voice selection
-                # via query or JSON. The voice/model is fixed by the container.
-                # persona→voice is future-proofing for when we switch to a
-                # multi-voice wrapper, but right now it's effectively cosmetic.
             )
 
         if resp.status_code != 200:
@@ -129,7 +152,13 @@ async def synthesize_speech(
         with audio_path.open("wb") as f:
             f.write(wav_bytes)
 
-    except (httpx.RequestError, OSError) as e:
+        # Extract some basic WAV metadata
+        with wave.open(str(audio_path), "rb") as wf:
+            channels = wf.getnchannels()
+            sample_rate = wf.getframerate()
+            frames = wf.getnframes()
+
+    except (httpx.RequestError, OSError, wave.Error) as e:
         logger.exception("Failed to synthesize with Piper")
         raise TTSClientError(str(e)) from e
 
@@ -140,4 +169,7 @@ async def synthesize_speech(
         "audio_path": str(audio_path),
         "backend": "piper",
         "voice": voice,
+        "channels": channels,
+        "sample_rate": sample_rate,
+        "frames": frames,
     }

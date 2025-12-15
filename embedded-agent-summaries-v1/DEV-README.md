@@ -12,6 +12,9 @@ docker compose up -d --build
 
 # Run tests on host (ensure pytest is installed in your dev env)
 
+python -m venv venv
+source venv/bin/activate # Or .\venv\Scripts\activate on Windows
+
 pytest tests/test_tts_piper.py -m integration -vv
 
 # Run tests inside agent container (optional)
@@ -124,3 +127,14 @@ curl -X POST "http://localhost:5000/" \
 curl http://localhost:5000/ || echo "Got something (even 404) from piper-http"
 
 Your earlier curl http://localhost:5000/ had no text, so the server raised ValueError("No text provided") and returned 500. That’s why you saw the HTML 500 page.
+
+## 1.4 Goal: Call TTS directly (no LLM/docs), get back tts_result + WAV file on disk.
+
+With docker compose already running (llm, agent, piper):
+
+curl -X POST http://localhost:8001/tts \
+ -H "Content-Type: application/json" \
+ -d '{
+"text": "Testing the debug TTS endpoint for the calm engineer.",
+"persona_id": "calm_engineer"
+}'
