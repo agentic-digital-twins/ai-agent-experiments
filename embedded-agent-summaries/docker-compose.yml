@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:full
+    container_name: embedded-llm
+    command: >
+      --server
+      --model /models/phi-2-q4_K_M.gguf
+      --n-gpu-layers 0
+      --threads 4
+      --host 0.0.0.0
+      --port 8080
+    volumes:
+      - ./models:/models
+    ports:
+      - "8080:8080"
+
+  agent:
+    build: ./agent
+    container_name: embedded-agent
+    environment:
+      - LLM_BASE_URL=http://llm:8080
+      - TTS_BASE_URL=http://tts:8000
+      - DOCS_DIR=/docs
+    volumes:
+      - ./docs:/docs
+    depends_on:
+      - llm
+      - tts
+    ports:
+      - "8001:8001" # agent API
+
+  tts:
+    build: ./tts
+    container_name: embedded-tts
+    ports:
+      - "8002:8000" # tts API (internal: 8000)
